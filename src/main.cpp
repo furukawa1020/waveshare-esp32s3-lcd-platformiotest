@@ -185,9 +185,11 @@ void fillScreen(uint16_t color) {
 }
 
 void setup() {
+  // USB Serial
   Serial.begin(115200);
-  delay(1000);
+  delay(2000); // Wait for USB CDC
   Serial.println("\n=== Waveshare ESP32-S3-Touch-LCD-1.85 Test ===");
+  Serial.println("Starting initialization...");
   
   // Initialize I2C
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -196,17 +198,32 @@ void setup() {
   // Initialize IO Expander (controls LCD power/reset)
   delay(100);
   initIOExpander();
+  Serial.println("IO Expander done");
   
   // Initialize Backlight
   delay(100);
   initBacklight();
+  Serial.println("Backlight done");
+  
+  // Blink backlight to show we're alive
+  for(int i = 0; i < 3; i++) {
+    ledcWrite(0, 255); // Full brightness
+    delay(200);
+    ledcWrite(0, 50);  // Dim
+    delay(200);
+  }
+  ledcWrite(0, 200); // Back to 80%
+  Serial.println("Blink test done");
   
   // Initialize Display
   delay(100);
+  Serial.println("About to init display...");
   initDisplay();
+  Serial.println("Display init returned");
   
   // Test: Fill screen with red
   delay(500);
+  Serial.println("About to fill screen...");
   fillScreen(0xF800); // Red (RGB565)
   
   Serial.println("Setup complete!");
