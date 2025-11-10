@@ -1,8 +1,9 @@
 // Waveshare ESP32-S3-Touch-LCD-1.85 Test
-// Step 1: I2C + Backlight
+// Step 2: Display initialization
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <SPI.h>
 
 // Pin definitions
 #define I2C_SDA 6
@@ -10,9 +11,23 @@
 #define LCD_BL 5
 #define TCA9554_ADDR 0x20
 
+// QSPI pins
+#define QSPI_SCK 40
+#define QSPI_CS 21
+#define QSPI_DATA0 46
+#define QSPI_DATA1 45
+#define QSPI_DATA2 42
+#define QSPI_DATA3 41
+
+// LCD size
+#define LCD_WIDTH 360
+#define LCD_HEIGHT 360
+
 // TCA9554PWR IO Expander registers
 #define TCA9554_OUTPUT_PORT 0x01
 #define TCA9554_CONFIG_PORT 0x03
+
+SPIClass *spi = NULL;
 
 void initIOExpander() {
   // Configure all pins as outputs
@@ -40,8 +55,100 @@ void initBacklight() {
   // Use ESP32 2.0.16 compatible API
   ledcSetup(0, 5000, 8);      // Channel 0, 5kHz, 8-bit resolution
   ledcAttachPin(LCD_BL, 0);   // Attach GPIO5 to channel 0
-  ledcWrite(0, 128);          // 50% brightness
-  Serial.println("Backlight initialized (50%)");
+  ledcWrite(0, 200);          // ~80% brightness
+  Serial.println("Backlight initialized (80%)");
+}
+
+void lcd_send_cmd(uint8_t cmd) {
+  // QSPI format: [OPCODE(8)][CMD(8)][PARAM(16)]
+  // For command: 0x02 (WRITE_CMD opcode) + cmd + 0x0000
+  uint32_t data = (0x02 << 24) | (cmd << 16);
+  
+  digitalWrite(QSPI_CS, LOW);
+  spi->transfer32(data);
+  digitalWrite(QSPI_CS, HIGH);
+  delayMicroseconds(1);
+}
+
+void lcd_send_data(uint8_t data) {
+  // QSPI format for data: 0x32 (WRITE_COLOR opcode) + 0x00 + data byte
+  uint32_t packet = (0x32 << 24) | data;
+  
+  digitalWrite(QSPI_CS, LOW);
+  spi->transfer32(packet);
+  digitalWrite(QSPI_CS, HIGH);
+  delayMicroseconds(1);
+}
+
+void initDisplay() {
+  Serial.println("Initializing ST77916 display...");
+  
+  // Initialize SPI (using standard SPI for now, will optimize later)
+  spi = new SPIClass(HSPI);
+  spi->begin(QSPI_SCK, QSPI_DATA0, QSPI_DATA1, QSPI_CS); // MISO not used
+  pinMode(QSPI_CS, OUTPUT);
+  digitalWrite(QSPI_CS, HIGH);
+  
+  delay(120); // Wait for display power stabilization
+  
+  // ST77916 initialization sequence (simplified)
+  lcd_send_cmd(0x11); // Sleep Out
+  delay(120);
+  
+  lcd_send_cmd(0x3A); // Pixel Format Set
+  lcd_send_data(0x55); // 16-bit/pixel (RGB565)
+  
+  lcd_send_cmd(0x36); // Memory Access Control
+  lcd_send_data(0x00); // Normal orientation
+  
+  lcd_send_cmd(0x29); // Display ON
+  delay(20);
+  
+  Serial.println("Display initialized!");
+}
+
+void fillScreen(uint16_t color) {
+  Serial.print("Filling screen with color: 0x");
+  Serial.println(color, HEX);
+  
+  // Set column address (0 to 359)
+  lcd_send_cmd(0x2A);
+  lcd_send_data(0x00);
+  lcd_send_data(0x00);
+  lcd_send_data(0x01);
+  lcd_send_data(0x67); // 359
+  
+  // Set row address (0 to 359)
+  lcd_send_cmd(0x2B);
+  lcd_send_data(0x00);
+  lcd_send_data(0x00);
+  lcd_send_data(0x01);
+  lcd_send_data(0x67); // 359
+  
+  // Write to RAM
+  lcd_send_cmd(0x2C);
+  
+  // Send pixel data in QSPI format
+  // Each pixel is 16-bit (RGB565)
+  uint8_t colorHigh = (color >> 8) & 0xFF;
+  uint8_t colorLow = color & 0xFF;
+  
+  digitalWrite(QSPI_CS, LOW);
+  
+  // Fill entire screen (360x360 pixels)
+  uint32_t totalPixels = LCD_WIDTH * LCD_HEIGHT;
+  for (uint32_t i = 0; i < totalPixels; i++) {
+    // Send high byte
+    uint32_t packet1 = (0x32 << 24) | colorHigh;
+    spi->transfer32(packet1);
+    
+    // Send low byte
+    uint32_t packet2 = (0x32 << 24) | colorLow;
+    spi->transfer32(packet2);
+  }
+  
+  digitalWrite(QSPI_CS, HIGH);
+  Serial.println("Screen filled!");
 }
 
 void setup() {
@@ -61,10 +168,46 @@ void setup() {
   delay(100);
   initBacklight();
   
+  // Initialize Display
+  delay(100);
+  initDisplay();
+  
+  // Test: Fill screen with red
+  delay(500);
+  fillScreen(0xF800); // Red (RGB565)
+  
   Serial.println("Setup complete!");
 }
 
 void loop() {
-  Serial.println("Running...");
-  delay(2000);
+  // Cycle through colors
+  static uint8_t colorIndex = 0;
+  static unsigned long lastChange = 0;
+  
+  if (millis() - lastChange > 3000) {
+    lastChange = millis();
+    
+    switch(colorIndex) {
+      case 0:
+        fillScreen(0x07E0); // Green
+        Serial.println("Green");
+        break;
+      case 1:
+        fillScreen(0x001F); // Blue
+        Serial.println("Blue");
+        break;
+      case 2:
+        fillScreen(0xFFFF); // White
+        Serial.println("White");
+        break;
+      case 3:
+        fillScreen(0xF800); // Red
+        Serial.println("Red");
+        break;
+    }
+    
+    colorIndex = (colorIndex + 1) % 4;
+  }
+  
+  delay(100);
 }
