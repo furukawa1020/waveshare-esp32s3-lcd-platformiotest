@@ -83,26 +83,62 @@ void lcd_send_data(uint8_t data) {
 void initDisplay() {
   Serial.println("Initializing ST77916 display...");
   
-  // Initialize SPI (using standard SPI for now, will optimize later)
+  // Initialize SPI with higher frequency
   spi = new SPIClass(HSPI);
-  spi->begin(QSPI_SCK, QSPI_DATA0, QSPI_DATA1, QSPI_CS); // MISO not used
+  spi->begin(QSPI_SCK, QSPI_DATA0, QSPI_DATA1, QSPI_CS);
   pinMode(QSPI_CS, OUTPUT);
   digitalWrite(QSPI_CS, HIGH);
   
-  delay(120); // Wait for display power stabilization
+  // Configure SPI settings
+  spi->beginTransaction(SPISettings(5000000, MSBFIRST, SPI_MODE0));
   
-  // ST77916 initialization sequence (simplified)
-  lcd_send_cmd(0x11); // Sleep Out
-  delay(120);
+  delay(200); // Wait for display power stabilization
+  
+  // Full ST77916 initialization sequence
+  Serial.println("Sending init sequence...");
+  
+  // Page 1
+  lcd_send_cmd(0xF0); lcd_send_data(0x01);
+  lcd_send_cmd(0xF1); lcd_send_data(0x01);
+  lcd_send_cmd(0xB0); lcd_send_data(0x56);
+  lcd_send_cmd(0xB1); lcd_send_data(0x4D);
+  lcd_send_cmd(0xB2); lcd_send_data(0x24);
+  lcd_send_cmd(0xB4); lcd_send_data(0x87);
+  lcd_send_cmd(0xB5); lcd_send_data(0x44);
+  lcd_send_cmd(0xB6); lcd_send_data(0x8B);
+  lcd_send_cmd(0xB7); lcd_send_data(0x40);
+  lcd_send_cmd(0xB8); lcd_send_data(0x86);
+  
+  // Gamma settings
+  lcd_send_cmd(0xF0); lcd_send_data(0x02);
+  lcd_send_cmd(0xE0); 
+  lcd_send_data(0xF0); lcd_send_data(0x0A); lcd_send_data(0x10); lcd_send_data(0x09);
+  lcd_send_data(0x09); lcd_send_data(0x36); lcd_send_data(0x35); lcd_send_data(0x33);
+  lcd_send_data(0x4A); lcd_send_data(0x29); lcd_send_data(0x15); lcd_send_data(0x15);
+  lcd_send_data(0x2E); lcd_send_data(0x34);
+  
+  lcd_send_cmd(0xE1);
+  lcd_send_data(0xF0); lcd_send_data(0x0A); lcd_send_data(0x0F); lcd_send_data(0x08);
+  lcd_send_data(0x08); lcd_send_data(0x05); lcd_send_data(0x34); lcd_send_data(0x33);
+  lcd_send_data(0x4A); lcd_send_data(0x39); lcd_send_data(0x15); lcd_send_data(0x15);
+  lcd_send_data(0x2D); lcd_send_data(0x33);
+  
+  // Back to page 0
+  lcd_send_cmd(0xF0); lcd_send_data(0x00);
+  
+  // Basic display settings
+  lcd_send_cmd(0x21); // Display Inversion ON
+  lcd_send_cmd(0x36); // Memory Access Control
+  lcd_send_data(0x00); // Normal orientation
   
   lcd_send_cmd(0x3A); // Pixel Format Set
   lcd_send_data(0x55); // 16-bit/pixel (RGB565)
   
-  lcd_send_cmd(0x36); // Memory Access Control
-  lcd_send_data(0x00); // Normal orientation
+  lcd_send_cmd(0x11); // Sleep Out
+  delay(120);
   
   lcd_send_cmd(0x29); // Display ON
-  delay(20);
+  delay(50);
   
   Serial.println("Display initialized!");
 }
