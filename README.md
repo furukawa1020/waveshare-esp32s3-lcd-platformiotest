@@ -1,6 +1,10 @@
 # Waveshare ESP32-S3-Touch-LCD-1.85 PlatformIO Project
 
+**非公式 (Unofficial) - furukawa1020 Edition**
+
 Waveshare ESP32-S3-Touch-LCD-1.85 円形ディスプレイのための**動作する**PlatformIOプロジェクト
+
+⚠️ これは非公式プロジェクトです。公式デモは[Waveshare Wiki](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.85)を参照してください。
 
 ## ハードウェア仕様
 
@@ -19,8 +23,8 @@ Waveshare ESP32-S3-Touch-LCD-1.85 円形ディスプレイのための**動作�
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/furukawa1020/testwaveshareESPS3touchLCD2.git
-cd testwaveshareESPS3touchLCD2
+git clone https://github.com/furukawa1020/waveshare-esp32s3-lcd-platformiotest.git
+cd waveshare-esp32s3-lcd-platformiotest
 
 # PlatformIOでビルド
 platformio run
@@ -50,9 +54,17 @@ platformio device monitor --port COM8 --baud 115200
 - このプロジェクトは2.0.16互換コードで実装
 - 段階的に機能を追加中
 
+## 作者
+
+**furukawa1020** - 非公式カスタム版
+
 ## ライセンス
 
 MIT License
+
+## 免責事項
+
+これは個人プロジェクトであり、Waveshare公式とは無関係です。使用は自己責任でお願いします。
 
 ## 参考
 
