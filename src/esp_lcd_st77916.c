@@ -73,17 +73,9 @@ esp_err_t esp_lcd_new_panel_st77916(const esp_lcd_panel_io_handle_t io, const es
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
     }
 
-    switch (panel_dev_config->rgb_ele_order) {
-    case LCD_RGB_ELEMENT_ORDER_RGB:
-        st77916->madctl_val = 0;
-        break;
-    case LCD_RGB_ELEMENT_ORDER_BGR:
-        st77916->madctl_val |= LCD_CMD_BGR_BIT;
-        break;
-    default:
-        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported color element order");
-        break;
-    }
+    // ESP32 Arduino 2.0.16 compatibility: rgb_ele_order not available
+    // Default to RGB order
+    st77916->madctl_val = 0;
 
     switch (panel_dev_config->bits_per_pixel) {
     case 16: // RGB565
@@ -117,7 +109,8 @@ esp_err_t esp_lcd_new_panel_st77916(const esp_lcd_panel_io_handle_t io, const es
     st77916->base.set_gap = panel_st77916_set_gap;
     st77916->base.mirror = panel_st77916_mirror;
     st77916->base.swap_xy = panel_st77916_swap_xy;
-    st77916->base.disp_on_off = panel_st77916_disp_on_off;
+    // ESP32 Arduino 2.0.16 compatibility: disp_on_off not available, use disp_off
+    st77916->base.disp_off = panel_st77916_disp_on_off;
     *ret_panel = &(st77916->base);
     ESP_LOGD(TAG, "new st77916 panel @%p", st77916);
 
