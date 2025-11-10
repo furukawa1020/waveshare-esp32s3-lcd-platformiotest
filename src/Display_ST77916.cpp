@@ -247,44 +247,37 @@ int QSPI_Init(void){
     .intr_flags = 0,                            
   };
   if(spi_bus_initialize(ESP_PANEL_HOST_SPI_ID_DEFAULT, &host_config, SPI_DMA_CH_AUTO) != ESP_OK){
-    printf("The SPI initialization failed.\r\n");
+    Serial.println("The SPI initialization failed.");
     return 0;
   }
-  printf("The SPI initialization succeeded.\r\n");
+  Serial.println("The SPI initialization succeeded.");
   
-  esp_lcd_panel_io_spi_config_t io_config ={
-    .cs_gpio_num = ESP_PANEL_LCD_SPI_IO_CS,               
-    .dc_gpio_num = -1,                  
-    .spi_mode = ESP_PANEL_LCD_SPI_MODE,                      
-    .pclk_hz = 5 * 1000 * 1000,       
-    .trans_queue_depth = ESP_PANEL_LCD_SPI_TRANS_QUEUE_SZ,            
-    .on_color_trans_done = NULL,                            
-    .user_ctx = NULL,                   
-    .lcd_cmd_bits = ESP_PANEL_LCD_SPI_CMD_BITS,                 
-    .lcd_param_bits = ESP_PANEL_LCD_SPI_PARAM_BITS,                
-    .flags = {                          
-      .dc_low_on_data = 0,            
-      .octal_mode = 0,                
-      .quad_mode = 1,                 
-      .sio_mode = 0,                  
-      .lsb_first = 0,                 
-      .cs_high_active = 0,            
-    },                                  
-  };
+  // ESP32 Arduino 2.0.16 compatible config
+  esp_lcd_panel_io_spi_config_t io_config = {};
+  io_config.cs_gpio_num = ESP_PANEL_LCD_SPI_IO_CS;
+  io_config.dc_gpio_num = -1;
+  io_config.spi_mode = ESP_PANEL_LCD_SPI_MODE;
+  io_config.pclk_hz = 5 * 1000 * 1000;
+  io_config.trans_queue_depth = ESP_PANEL_LCD_SPI_TRANS_QUEUE_SZ;
+  io_config.on_color_trans_done = NULL;
+  io_config.user_ctx = NULL;
+  io_config.lcd_cmd_bits = ESP_PANEL_LCD_SPI_CMD_BITS;
+  io_config.lcd_param_bits = ESP_PANEL_LCD_SPI_PARAM_BITS;
+  // Note: quad_mode flag not available in 2.0.16
   esp_lcd_panel_io_handle_t io_handle = NULL;
   if(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)ESP_PANEL_HOST_SPI_ID_DEFAULT, &io_config, &io_handle) != ESP_OK){
-    printf("Failed to set LCD communication parameters -- SPI\r\n");
+    Serial.println("Failed to set LCD communication parameters -- SPI");
     return 0;
   }
-  printf("LCD communication parameters are set successfully -- SPI\r\n");
+  Serial.println("LCD communication parameters are set successfully -- SPI");
 
-  printf("Install LCD driver of st77916\r\n");
+  Serial.println("Install LCD driver of st77916");
   st77916_vendor_config_t vendor_config={  
     .flags = {
       .use_qspi_interface = 1,
     },
   };
-  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\n");
+  Serial.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
   esp_err_t ret;
   int lcd_cmd = 0x04;
   uint8_t register_data[4]; 
@@ -294,41 +287,37 @@ int QSPI_Init(void){
   lcd_cmd |= LCD_OPCODE_READ_CMD << 24;  // Use the read opcode instead of write
   ret = esp_lcd_panel_io_rx_param(io_handle, lcd_cmd, register_data, param_size); 
   if (ret == ESP_OK) {
-    printf("Register 0x04 data: %02x %02x %02x %02x\n", register_data[0], register_data[1], register_data[2], register_data[3]);
+    Serial.printf("Register 0x04 data: %02x %02x %02x %02x\n", register_data[0], register_data[1], register_data[2], register_data[3]));
   } else {
-    printf("Failed to read register 0x04, error code: %d\n", ret);
+    Serial.printf("Failed to read register 0x04, error code: %d\n", ret));
   } 
   // panel_io_spi_del(io_handle);
   io_config.pclk_hz = ESP_PANEL_LCD_SPI_CLK_HZ;
   if(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)ESP_PANEL_HOST_SPI_ID_DEFAULT, &io_config, &io_handle) != ESP_OK){
-    printf("Failed to set LCD communication parameters -- SPI\r\n");
+    Serial.println("Failed to set LCD communication parameters -- SPI");
     return 0;
   }
-  printf("LCD communication parameters are set successfully -- SPI\r\n");
+  Serial.println("LCD communication parameters are set successfully -- SPI");
   
   // Check register values and configure accordingly
   if (register_data[0] == 0x00 && register_data[1] == 0x7F && register_data[2] == 0x7F && register_data[3] == 0x7F) {
     // Handle the case where the register data matches this pattern
-    printf("Vendor-specific initialization for case 1.\n");
+    Serial.println("Vendor-specific initialization for case 1.");
   }
   else if (register_data[0] == 0x00 && register_data[1] == 0x02 && register_data[2] == 0x7F && register_data[3] == 0x7F) {
     // Provide vendor-specific initialization commands if register data matches this pattern
     vendor_config.init_cmds = vendor_specific_init_new;
     vendor_config.init_cmds_size = sizeof(vendor_specific_init_new) / sizeof(st77916_lcd_init_cmd_t);
-    printf("Vendor-specific initialization for case 2.\n");
+    Serial.println("Vendor-specific initialization for case 2.");
   }
-  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\n");
+  Serial.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
  
-  esp_lcd_panel_dev_config_t panel_config={
-    .reset_gpio_num = EXAMPLE_LCD_PIN_NUM_RST,                                     
-    .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,                   
-    .data_endian = LCD_RGB_DATA_ENDIAN_BIG,                       
-    .bits_per_pixel = EXAMPLE_LCD_COLOR_BITS,                                 
-    .flags = {                                                    
-      .reset_active_high = 0,                                   
-    },                                                            
-    .vendor_config = (void *) &vendor_config,                                  
-  };
+  // ESP32 Arduino 2.0.16 compatible panel config
+  esp_lcd_panel_dev_config_t panel_config = {};
+  panel_config.reset_gpio_num = EXAMPLE_LCD_PIN_NUM_RST;
+  panel_config.bits_per_pixel = EXAMPLE_LCD_COLOR_BITS;
+  panel_config.vendor_config = (void *) &vendor_config;
+  // Note: rgb_ele_order and data_endian not available in 2.0.16
   esp_lcd_new_panel_st77916(io_handle, &panel_config, &panel_handle);
 
   esp_lcd_panel_reset(panel_handle);
@@ -344,7 +333,7 @@ void ST77916_Init() {
   ST7701_Reset();
   pinMode(ESP_PANEL_LCD_SPI_IO_TE, OUTPUT);
   if(!QSPI_Init()){
-    printf("ST77916 Failed to be initialized\r\n");
+    Serial.println("ST77916 Failed to be initialized");
   }
 }
 
@@ -364,28 +353,32 @@ void LCD_addWindow(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint16_t Yen
   if (Yend > EXAMPLE_LCD_HEIGHT)
     Yend = EXAMPLE_LCD_HEIGHT;
     
-  // printf("Xstart = %d    Ystart = %d    Xend = %d    Yend = %d \r\n",Xstart, Ystart, Xend, Yend);
+  // Serial.println("Xstart = %d    Ystart = %d    Xend = %d    Yend = %d \r\n"),Xstart, Ystart, Xend, Yend);
   esp_lcd_panel_draw_bitmap(panel_handle, Xstart, Ystart, Xend, Yend, color);                     // x_end End index on x-axis (x_end not included)
 }
 
 
 uint8_t LCD_Backlight = 50;
-// backlight
+// backlight - ESP32 Arduino 2.0.16 compatible
 void Backlight_Init()
 {
-  ledcAttach(LCD_Backlight_PIN, Frequency, Resolution);   
-  ledcWrite(LCD_Backlight_PIN, Dutyfactor);  
+  // Use ledcSetup + ledcAttachPin instead of ledcAttach
+  ledcSetup(0, Frequency, Resolution);
+  ledcAttachPin(LCD_Backlight_PIN, 0);
+  ledcWrite(0, Dutyfactor);  
   Set_Backlight(LCD_Backlight);      //0~100                 
 }
 
 void Set_Backlight(uint8_t Light)                     
 {
   if(Light > Backlight_MAX || Light < 0)
-    printf("Set Backlight parameters in the range of 0 to 100 \r\n");
+    Serial.println("Set Backlight parameters in the range of 0 to 100 ");
   else{
     uint32_t Backlight = Light*10;
     if(Backlight == 1000)
       Backlight = 1024;
-    ledcWrite(LCD_Backlight_PIN, Backlight);
+    ledcWrite(0, Backlight);  // Use channel 0
   }
 }
+
+

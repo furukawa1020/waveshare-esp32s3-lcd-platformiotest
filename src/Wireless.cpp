@@ -36,8 +36,8 @@ int ble_scan_number()
   BLEScan* pBLEScan = BLEDevice::getScan();
   pBLEScan->setActiveScan(true);
 
-  BLEScanResults* foundDevices = pBLEScan->start(5);  
-  int count = foundDevices->getCount();
+  BLEScanResults foundDevices = pBLEScan->start(5);  // ESP32 Arduino 2.0.16 returns by value
+  int count = foundDevices.getCount();
   if (count == 0)
   {
     printf("No Bluetooth device was scanned\r\n");

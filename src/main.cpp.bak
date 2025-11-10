@@ -1,0 +1,95 @@
+// Waveshare ESP32-S3-Touch-LCD-1.85 Test
+// Using Waveshare Arduino Library
+
+#include <Arduino.h>
+#include "Display_ST77916.h"
+#include "I2C_Driver.h"
+#include "TCA9554PWR.h"
+
+// Backlight pin
+#define LCD_BL 5
+
+void initBacklight() {
+  ledcSetup(0, 5000, 8);
+  ledcAttachPin(LCD_BL, 0);
+  ledcWrite(0, 200);
+  Serial.println("Backlight: 80%");
+}
+
+void setup() {
+  // USB Serial
+  Serial.begin(115200);
+  delay(2000); // Wait for USB CDC
+  Serial.println("\n=== Waveshare ESP32-S3-Touch-LCD-1.85 Test ===");
+  Serial.println("Starting initialization...");
+  
+  // Initialize I2C
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Serial.println("I2C initialized");
+  
+  // Initialize IO Expander (controls LCD power/reset)
+  delay(100);
+  initIOExpander();
+  Serial.println("IO Expander done");
+  
+  // Initialize Backlight
+  delay(100);
+  initBacklight();
+  Serial.println("Backlight done");
+  
+  // Blink backlight to show we're alive
+  for(int i = 0; i < 3; i++) {
+    ledcWrite(0, 255); // Full brightness
+    delay(200);
+    ledcWrite(0, 50);  // Dim
+    delay(200);
+  }
+  ledcWrite(0, 200); // Back to 80%
+  Serial.println("Blink test done");
+  
+  // Initialize Display
+  delay(100);
+  Serial.println("About to init display...");
+  initDisplay();
+  Serial.println("Display init returned");
+  
+  // Test: Fill screen with red
+  delay(500);
+  Serial.println("About to fill screen...");
+  fillScreen(0xF800); // Red (RGB565)
+  
+  Serial.println("Setup complete!");
+}
+
+void loop() {
+  // Cycle through colors
+  static uint8_t colorIndex = 0;
+  static unsigned long lastChange = 0;
+  
+  if (millis() - lastChange > 3000) {
+    lastChange = millis();
+    
+    switch(colorIndex) {
+      case 0:
+        fillScreen(0x07E0); // Green
+        Serial.println("Green");
+        break;
+      case 1:
+        fillScreen(0x001F); // Blue
+        Serial.println("Blue");
+        break;
+      case 2:
+        fillScreen(0xFFFF); // White
+        Serial.println("White");
+        break;
+      case 3:
+        fillScreen(0xF800); // Red
+        Serial.println("Red");
+        break;
+    }
+    
+    colorIndex = (colorIndex + 1) % 4;
+  }
+  
+  delay(100);
+}
