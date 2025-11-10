@@ -1,0 +1,17 @@
+# PlatformIO
+.pio/
+.vscode/
+.clang_complete
+.gcc-flags.json
+
+# 公式デモ(参考用のみ、コンパイル不要)
+ESP32-S3-Touch-LCD-1.85-Demo/
+
+# ビルド成果物
+*.bin
+*.elf
+*.map
+
+# OS
+.DS_Store
+Thumbs.db
