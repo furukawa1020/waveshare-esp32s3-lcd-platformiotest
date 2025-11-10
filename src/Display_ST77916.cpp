@@ -287,9 +287,9 @@ int QSPI_Init(void){
   lcd_cmd |= LCD_OPCODE_READ_CMD << 24;  // Use the read opcode instead of write
   ret = esp_lcd_panel_io_rx_param(io_handle, lcd_cmd, register_data, param_size); 
   if (ret == ESP_OK) {
-    Serial.printf("Register 0x04 data: %02x %02x %02x %02x\n", register_data[0], register_data[1], register_data[2], register_data[3]));
+    Serial.printf("Register 0x04 data: %02x %02x %02x %02x\n", register_data[0], register_data[1], register_data[2], register_data[3]);
   } else {
-    Serial.printf("Failed to read register 0x04, error code: %d\n", ret));
+    Serial.printf("Failed to read register 0x04, error code: %d\n", ret);
   } 
   // panel_io_spi_del(io_handle);
   io_config.pclk_hz = ESP_PANEL_LCD_SPI_CLK_HZ;
