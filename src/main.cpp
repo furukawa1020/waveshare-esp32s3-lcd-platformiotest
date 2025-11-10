@@ -97,25 +97,17 @@ void initDisplay() {
   Serial.println("SPI bus initialized");
   
   // Configure panel IO (QSPI)
-  esp_lcd_panel_io_spi_config_t io_config = {
-    .cs_gpio_num = QSPI_CS,
-    .dc_gpio_num = -1,
-    .spi_mode = 0,
-    .pclk_hz = 40 * 1000 * 1000, // 40MHz
-    .trans_queue_depth = 10,
-    .on_color_trans_done = NULL,
-    .user_ctx = NULL,
-    .lcd_cmd_bits = 32,
-    .lcd_param_bits = 8,
-    .flags = {
-      .dc_low_on_data = 0,
-      .octal_mode = 0,
-      .quad_mode = 1, // QSPI mode
-      .sio_mode = 0,
-      .lsb_first = 0,
-      .cs_high_active = 0,
-    },
-  };
+  esp_lcd_panel_io_spi_config_t io_config = {};
+  io_config.cs_gpio_num = QSPI_CS;
+  io_config.dc_gpio_num = -1;
+  io_config.spi_mode = 0;
+  io_config.pclk_hz = 40 * 1000 * 1000; // 40MHz
+  io_config.trans_queue_depth = 10;
+  io_config.on_color_trans_done = NULL;
+  io_config.user_ctx = NULL;
+  io_config.lcd_cmd_bits = 32;
+  io_config.lcd_param_bits = 8;
+  // Note: QSPI flags not available in 2.0.16, configured in vendor config
   
   esp_lcd_panel_io_handle_t io_handle = NULL;
   ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle);
@@ -125,16 +117,11 @@ void initDisplay() {
   }
   Serial.println("Panel IO initialized");
   
-  // Configure panel device
-  esp_lcd_panel_dev_config_t panel_config = {
-    .reset_gpio_num = -1, // Controlled by TCA9554PWR
-    .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-    .bits_per_pixel = 16,
-    .flags = {
-      .reset_active_high = 0,
-    },
-    .vendor_config = NULL,
-  };
+  // Configure panel device (ESP32 Arduino 2.0.16 compatible)
+  esp_lcd_panel_dev_config_t panel_config = {};
+  panel_config.reset_gpio_num = -1; // Controlled by TCA9554PWR
+  panel_config.bits_per_pixel = 16;
+  // Note: rgb_ele_order not available in 2.0.16
   
   st77916_vendor_config_t vendor_config = {
     .init_cmds = NULL,
