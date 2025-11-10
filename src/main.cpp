@@ -80,52 +80,104 @@ void fillScreen(uint16_t color) {
   }
 }
 
+/**
+ * setup() - 初期化処理
+ * 
+ * 実行順序:
+ * 1. シリアル通信初期化 (115200bps)
+ * 2. I2C通信初期化
+ * 3. IOエキスパンダー初期化 (TCA9554PWR)
+ * 4. バックライトPWM初期化
+ * 5. バックライト点滅テスト (3回)
+ * 6. LCDディスプレイ初期化 (QSPI)
+ * 7. 画面を赤で塗りつぶし
+ * 
+ * 動作確認:
+ *   ✅ シリアル出力が表示される
+ *   ✅ バックライトが点滅する
+ *   ❌ 画面に色は表示されない (QSPI問題)
+ */
 void setup() {
+  // シリアル通信開始
   Serial.begin(115200);
-  delay(2000);
-  Serial.println("=== ESP32-S3 LCD Test ===");
+  delay(2000);  // シリアルモニター接続待ち
+  Serial.println("\n=== Waveshare ESP32-S3-Touch-LCD-1.85 Test ===");
+  Serial.println("Project: Kirby-style character + Local LLM");
+  Serial.println("Phase: Hardware initialization\n");
   
+  // I2C初期化 (SDA=GPIO6, SCL=GPIO7)
   I2C_Init();
-  Serial.println("I2C OK");
+  Serial.println("[OK] I2C initialized");
   
+  // IOエキスパンダー初期化 (TCA9554PWR @ 0x20)
+  // LCD_RSTとLCD_CS_IOを制御
   TCA9554PWR_Init(0x00);
-  Serial.println("EXIO OK");
+  Serial.println("[OK] IO Expander (TCA9554PWR) initialized");
   
+  // バックライト初期化
   initBacklight();
   
+  // バックライト点滅テスト (動作確認用)
+  Serial.println("[TEST] Backlight blinking test...");
   for(int i = 0; i < 3; i++) {
-    ledcWrite(0, 255);
+    ledcWrite(0, 255);  // 100%輝度
     delay(200);
-    ledcWrite(0, 50);
+    ledcWrite(0, 50);   // 約20%輝度
     delay(200);
   }
-  ledcWrite(0, 200);
-  Serial.println("Blink OK");
+  ledcWrite(0, 200);    // 80%輝度に戻す
+  Serial.println("[OK] Backlight test passed");
   
-  Serial.println("Init LCD...");
+  // LCDディスプレイ初期化 (ST77916 QSPI)
+  Serial.println("[INFO] Initializing LCD (ST77916 QSPI)...");
   LCD_Init();
-  Serial.println("LCD OK");
+  Serial.println("[OK] LCD initialization complete");
+  Serial.println("[WARN] Display output not visible due to quad_mode issue");
   
-  Serial.println("Fill red...");
+  // 画面を赤で塗りつぶし (テスト)
+  Serial.println("[INFO] Filling screen with RED...");
   fillScreen(RED);
   
-  Serial.println("Done!");
+  Serial.println("\n[DONE] Setup complete! Entering color cycle loop...\n");
 }
 
+/**
+ * loop() - メインループ
+ * 
+ * 3秒ごとに画面の色を変更:
+ *   Red → Green → Blue → White → (繰り返し)
+ * 
+ * シリアル出力で色の変更を確認できます。
+ * (実際のディスプレイには表示されません)
+ */
 void loop() {
-  static uint8_t idx = 0;
-  static unsigned long last = 0;
+  static uint8_t idx = 0;              // 現在の色インデックス
+  static unsigned long last = 0;       // 最後に色を変えた時刻
   
+  // 3秒経過したら次の色に切り替え
   if (millis() - last > 3000) {
     last = millis();
     
     switch(idx) {
-      case 0: fillScreen(GREEN); Serial.println("Green"); break;
-      case 1: fillScreen(BLUE); Serial.println("Blue"); break;
-      case 2: fillScreen(WHITE); Serial.println("White"); break;
-      case 3: fillScreen(RED); Serial.println("Red"); break;
+      case 0: 
+        fillScreen(GREEN); 
+        Serial.println("[COLOR] Green"); 
+        break;
+      case 1: 
+        fillScreen(BLUE); 
+        Serial.println("[COLOR] Blue"); 
+        break;
+      case 2: 
+        fillScreen(WHITE); 
+        Serial.println("[COLOR] White"); 
+        break;
+      case 3: 
+        fillScreen(RED); 
+        Serial.println("[COLOR] Red"); 
+        break;
     }
-    idx = (idx + 1) % 4;
+    idx = (idx + 1) % 4;  // 0→1→2→3→0...
   }
-  delay(100);
+  
+  delay(100);  // CPU負荷軽減
 }
