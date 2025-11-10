@@ -1,9 +1,15 @@
 // Waveshare ESP32-S3-Touch-LCD-1.85 Test
-// Step 2: Display initialization
+// Step 3: ESP-IDF QSPI Display Driver
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <SPI.h>
+
+extern "C" {
+  #include "driver/spi_master.h"
+  #include "esp_lcd_panel_io.h"
+  #include "esp_lcd_panel_ops.h"
+  #include "esp_lcd_st77916.h"
+}
 
 // Pin definitions
 #define I2C_SDA 6
@@ -27,7 +33,11 @@
 #define TCA9554_OUTPUT_PORT 0x01
 #define TCA9554_CONFIG_PORT 0x03
 
-SPIClass *spi = NULL;
+// Display opcodes
+#define LCD_OPCODE_WRITE_CMD    0x02ULL
+#define LCD_OPCODE_WRITE_COLOR  0x32ULL
+
+esp_lcd_panel_handle_t panel_handle = NULL;
 
 void initIOExpander() {
   // Configure all pins as outputs
@@ -59,131 +69,131 @@ void initBacklight() {
   Serial.println("Backlight initialized (80%)");
 }
 
-void lcd_send_cmd(uint8_t cmd) {
-  // QSPI format: [OPCODE(8)][CMD(8)][PARAM(16)]
-  // For command: 0x02 (WRITE_CMD opcode) + cmd + 0x0000
-  uint32_t data = (0x02 << 24) | (cmd << 16);
-  
-  digitalWrite(QSPI_CS, LOW);
-  spi->transfer32(data);
-  digitalWrite(QSPI_CS, HIGH);
-  delayMicroseconds(1);
-}
-
-void lcd_send_data(uint8_t data) {
-  // QSPI format for data: 0x32 (WRITE_COLOR opcode) + 0x00 + data byte
-  uint32_t packet = (0x32 << 24) | data;
-  
-  digitalWrite(QSPI_CS, LOW);
-  spi->transfer32(packet);
-  digitalWrite(QSPI_CS, HIGH);
-  delayMicroseconds(1);
-}
-
 void initDisplay() {
-  Serial.println("Initializing ST77916 display...");
+  Serial.println("Initializing ST77916 display with ESP-IDF...");
   
-  // Initialize SPI with higher frequency
-  spi = new SPIClass(HSPI);
-  spi->begin(QSPI_SCK, QSPI_DATA0, QSPI_DATA1, QSPI_CS);
-  pinMode(QSPI_CS, OUTPUT);
-  digitalWrite(QSPI_CS, HIGH);
+  // Configure SPI bus
+  spi_bus_config_t bus_config = {
+    .mosi_io_num = QSPI_DATA0,
+    .miso_io_num = -1,
+    .sclk_io_num = QSPI_SCK,
+    .quadwp_io_num = QSPI_DATA2,
+    .quadhd_io_num = QSPI_DATA3,
+    .data4_io_num = -1,
+    .data5_io_num = -1,
+    .data6_io_num = -1,
+    .data7_io_num = -1,
+    .max_transfer_sz = LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t),
+    .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_GPIO_PINS,
+    .intr_flags = 0,
+  };
   
-  // Configure SPI settings
-  spi->beginTransaction(SPISettings(5000000, MSBFIRST, SPI_MODE0));
+  // Initialize SPI bus
+  esp_err_t ret = spi_bus_initialize(SPI2_HOST, &bus_config, SPI_DMA_CH_AUTO);
+  if (ret != ESP_OK) {
+    Serial.printf("SPI bus init failed: %d\n", ret);
+    return;
+  }
+  Serial.println("SPI bus initialized");
   
-  delay(200); // Wait for display power stabilization
+  // Configure panel IO (QSPI)
+  esp_lcd_panel_io_spi_config_t io_config = {
+    .cs_gpio_num = QSPI_CS,
+    .dc_gpio_num = -1,
+    .spi_mode = 0,
+    .pclk_hz = 40 * 1000 * 1000, // 40MHz
+    .trans_queue_depth = 10,
+    .on_color_trans_done = NULL,
+    .user_ctx = NULL,
+    .lcd_cmd_bits = 32,
+    .lcd_param_bits = 8,
+    .flags = {
+      .dc_low_on_data = 0,
+      .octal_mode = 0,
+      .quad_mode = 1, // QSPI mode
+      .sio_mode = 0,
+      .lsb_first = 0,
+      .cs_high_active = 0,
+    },
+  };
   
-  // Full ST77916 initialization sequence
-  Serial.println("Sending init sequence...");
+  esp_lcd_panel_io_handle_t io_handle = NULL;
+  ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle);
+  if (ret != ESP_OK) {
+    Serial.printf("Panel IO init failed: %d\n", ret);
+    return;
+  }
+  Serial.println("Panel IO initialized");
   
-  // Page 1
-  lcd_send_cmd(0xF0); lcd_send_data(0x01);
-  lcd_send_cmd(0xF1); lcd_send_data(0x01);
-  lcd_send_cmd(0xB0); lcd_send_data(0x56);
-  lcd_send_cmd(0xB1); lcd_send_data(0x4D);
-  lcd_send_cmd(0xB2); lcd_send_data(0x24);
-  lcd_send_cmd(0xB4); lcd_send_data(0x87);
-  lcd_send_cmd(0xB5); lcd_send_data(0x44);
-  lcd_send_cmd(0xB6); lcd_send_data(0x8B);
-  lcd_send_cmd(0xB7); lcd_send_data(0x40);
-  lcd_send_cmd(0xB8); lcd_send_data(0x86);
+  // Configure panel device
+  esp_lcd_panel_dev_config_t panel_config = {
+    .reset_gpio_num = -1, // Controlled by TCA9554PWR
+    .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+    .bits_per_pixel = 16,
+    .flags = {
+      .reset_active_high = 0,
+    },
+    .vendor_config = NULL,
+  };
   
-  // Gamma settings
-  lcd_send_cmd(0xF0); lcd_send_data(0x02);
-  lcd_send_cmd(0xE0); 
-  lcd_send_data(0xF0); lcd_send_data(0x0A); lcd_send_data(0x10); lcd_send_data(0x09);
-  lcd_send_data(0x09); lcd_send_data(0x36); lcd_send_data(0x35); lcd_send_data(0x33);
-  lcd_send_data(0x4A); lcd_send_data(0x29); lcd_send_data(0x15); lcd_send_data(0x15);
-  lcd_send_data(0x2E); lcd_send_data(0x34);
+  st77916_vendor_config_t vendor_config = {
+    .init_cmds = NULL,
+    .init_cmds_size = 0,
+    .flags = {
+      .use_qspi_interface = 1,
+    },
+  };
+  panel_config.vendor_config = &vendor_config;
   
-  lcd_send_cmd(0xE1);
-  lcd_send_data(0xF0); lcd_send_data(0x0A); lcd_send_data(0x0F); lcd_send_data(0x08);
-  lcd_send_data(0x08); lcd_send_data(0x05); lcd_send_data(0x34); lcd_send_data(0x33);
-  lcd_send_data(0x4A); lcd_send_data(0x39); lcd_send_data(0x15); lcd_send_data(0x15);
-  lcd_send_data(0x2D); lcd_send_data(0x33);
+  // Create ST77916 panel
+  ret = esp_lcd_new_panel_st77916(io_handle, &panel_config, &panel_handle);
+  if (ret != ESP_OK) {
+    Serial.printf("Panel init failed: %d\n", ret);
+    return;
+  }
+  Serial.println("Panel created");
   
-  // Back to page 0
-  lcd_send_cmd(0xF0); lcd_send_data(0x00);
+  // Reset and initialize panel
+  esp_lcd_panel_reset(panel_handle);
+  delay(100);
   
-  // Basic display settings
-  lcd_send_cmd(0x21); // Display Inversion ON
-  lcd_send_cmd(0x36); // Memory Access Control
-  lcd_send_data(0x00); // Normal orientation
+  esp_lcd_panel_init(panel_handle);
+  delay(100);
   
-  lcd_send_cmd(0x3A); // Pixel Format Set
-  lcd_send_data(0x55); // 16-bit/pixel (RGB565)
-  
-  lcd_send_cmd(0x11); // Sleep Out
-  delay(120);
-  
-  lcd_send_cmd(0x29); // Display ON
-  delay(50);
+  // Turn on display
+  esp_lcd_panel_disp_on_off(panel_handle, true);
+  delay(10);
   
   Serial.println("Display initialized!");
 }
 
 void fillScreen(uint16_t color) {
+  if (panel_handle == NULL) {
+    Serial.println("Panel not initialized!");
+    return;
+  }
+  
   Serial.print("Filling screen with color: 0x");
   Serial.println(color, HEX);
   
-  // Set column address (0 to 359)
-  lcd_send_cmd(0x2A);
-  lcd_send_data(0x00);
-  lcd_send_data(0x00);
-  lcd_send_data(0x01);
-  lcd_send_data(0x67); // 359
-  
-  // Set row address (0 to 359)
-  lcd_send_cmd(0x2B);
-  lcd_send_data(0x00);
-  lcd_send_data(0x00);
-  lcd_send_data(0x01);
-  lcd_send_data(0x67); // 359
-  
-  // Write to RAM
-  lcd_send_cmd(0x2C);
-  
-  // Send pixel data in QSPI format
-  // Each pixel is 16-bit (RGB565)
-  uint8_t colorHigh = (color >> 8) & 0xFF;
-  uint8_t colorLow = color & 0xFF;
-  
-  digitalWrite(QSPI_CS, LOW);
-  
-  // Fill entire screen (360x360 pixels)
-  uint32_t totalPixels = LCD_WIDTH * LCD_HEIGHT;
-  for (uint32_t i = 0; i < totalPixels; i++) {
-    // Send high byte
-    uint32_t packet1 = (0x32 << 24) | colorHigh;
-    spi->transfer32(packet1);
-    
-    // Send low byte
-    uint32_t packet2 = (0x32 << 24) | colorLow;
-    spi->transfer32(packet2);
+  // Allocate buffer for one row
+  uint16_t *line_buf = (uint16_t *)heap_caps_malloc(LCD_WIDTH * sizeof(uint16_t), MALLOC_CAP_DMA);
+  if (line_buf == NULL) {
+    Serial.println("Failed to allocate line buffer!");
+    return;
   }
   
-  digitalWrite(QSPI_CS, HIGH);
+  // Fill buffer with color
+  for (int i = 0; i < LCD_WIDTH; i++) {
+    line_buf[i] = (color >> 8) | (color << 8); // Swap bytes for RGB565
+  }
+  
+  // Draw each row
+  for (int y = 0; y < LCD_HEIGHT; y++) {
+    esp_lcd_panel_draw_bitmap(panel_handle, 0, y, LCD_WIDTH, y + 1, line_buf);
+  }
+  
+  free(line_buf);
   Serial.println("Screen filled!");
 }
 
